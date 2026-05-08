@@ -17,9 +17,9 @@ export default function Dashboard() {
 
   useEffect(() => {
     Promise.all([
-      prApi.list({ limit: 5 }),
-      poApi.list({ limit: 5 }),
-      vendorApi.list({ limit: 5 }),
+      prApi.list({ limit: 100 }),
+      poApi.list({ limit: 100 }),
+      vendorApi.list({ limit: 100 }),
     ]).then(([prs, pos, vendors]) => {
       setData({ prs: prs.data, pos: pos.data, vendors: vendors.data })
       setLoading(false)
@@ -28,11 +28,15 @@ export default function Dashboard() {
 
   const stats = [
     { label: 'Total PRs', value: data.prs.length, icon: FileText, color: 'var(--blue)', bg: 'var(--blue-dim)' },
-    { label: 'Active POs', value: data.pos.filter(p => ['sent', 'acknowledged', 'partially_received'].includes(p.status)).length, icon: ShoppingCart, color: 'var(--accent)', bg: 'var(--accent-dim)' },
-    { label: 'Vendors', value: data.vendors.length, icon: Users, color: 'var(--purple)', bg: 'var(--purple-dim)' },
+    {
+      label: 'Active POs',
+      value: data.pos.filter(p => ['sent', 'acknowledged', 'partially_received'].includes(p.status)).length,
+      icon: ShoppingCart, color: 'var(--accent)', bg: 'var(--accent-dim)'
+    },
+    { label: 'Vendors', value: data.vendors.filter(v => v.status === 'approved').length, icon: Users, color: 'var(--purple)', bg: 'var(--purple-dim)' },
     {
       label: 'PO Value (INR)',
-      value: '₹' + (data.pos.reduce((s, p) => s + p.total_amount, 0) / 100000).toFixed(1) + 'L',
+      value: '₹' + (data.pos.reduce((s, p) => s + (p.total_amount || 0), 0) / 100000).toFixed(1) + 'L',
       icon: TrendingUp, color: 'var(--green)', bg: 'var(--green-dim)',
     },
   ]
@@ -89,7 +93,6 @@ export default function Dashboard() {
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-            {/* Recent PRs */}
             <div className="card">
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
                 <h3 style={{ fontSize: '14px', fontWeight: 500 }}>Recent Requisitions</h3>
@@ -104,20 +107,18 @@ export default function Dashboard() {
                   <Link key={pr.id} to={`/requisitions/${pr.id}`} style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                     padding: '10px 0', borderBottom: '1px solid var(--border-subtle)',
-                    color: 'var(--text-primary)', textDecoration: 'none',
-                    fontSize: '13px',
+                    color: 'var(--text-primary)', textDecoration: 'none', fontSize: '13px',
                   }}>
                     <div>
                       <div style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--text-muted)' }}>{pr.pr_number}</div>
                       <div style={{ fontWeight: 500 }}>{pr.title}</div>
                     </div>
-                    <span className={`badge ${statusBadge[pr.status] || 'badge-muted'}`}>{pr.status.replace('_', ' ')}</span>
+                    <span className={`badge ${statusBadge[pr.status] || 'badge-muted'}`}>{pr.status.replace(/_/g, ' ')}</span>
                   </Link>
                 ))
               )}
             </div>
 
-            {/* Vendor pipeline */}
             <div className="card">
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
                 <h3 style={{ fontSize: '14px', fontWeight: 500 }}>Vendor Pipeline</h3>
@@ -132,14 +133,13 @@ export default function Dashboard() {
                   <Link key={v.id} to={`/vendors/${v.id}`} style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                     padding: '10px 0', borderBottom: '1px solid var(--border-subtle)',
-                    color: 'var(--text-primary)', textDecoration: 'none',
-                    fontSize: '13px',
+                    color: 'var(--text-primary)', textDecoration: 'none', fontSize: '13px',
                   }}>
                     <div>
                       <div style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--text-muted)' }}>{v.vendor_code}</div>
                       <div style={{ fontWeight: 500 }}>{v.company_name}</div>
                     </div>
-                    <span className={`badge ${statusBadge[v.status] || 'badge-muted'}`}>{v.status.replace('_', ' ')}</span>
+                    <span className={`badge ${statusBadge[v.status] || 'badge-muted'}`}>{v.status.replace(/_/g, ' ')}</span>
                   </Link>
                 ))
               )}

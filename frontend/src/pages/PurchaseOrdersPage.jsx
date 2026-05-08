@@ -33,14 +33,15 @@ export default function PurchaseOrdersPage() {
   const handleStatusChange = async (id, status) => {
     try {
       await poApi.update(id, { status })
-      toast.success(`PO status updated to ${status}`)
+      toast.success(`PO status updated to ${status.replace(/_/g, ' ')}`)
       fetchPOs()
-    } catch { toast.error('Failed to update PO') }
+    } catch (e) { toast.error(e.response?.data?.detail || 'Failed to update PO') }
   }
 
   const filtered = pos.filter(p =>
     !search ||
-    p.po_number.toLowerCase().includes(search.toLowerCase())
+    p.po_number.toLowerCase().includes(search.toLowerCase()) ||
+    (p.vendor?.company_name || '').toLowerCase().includes(search.toLowerCase())
   )
 
   return (
@@ -58,10 +59,10 @@ export default function PurchaseOrdersPage() {
       <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' }}>
         <div style={{ position: 'relative', flex: '1', minWidth: '200px' }}>
           <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-          <input className="input" placeholder="Search POs..." value={search} onChange={e => setSearch(e.target.value)} style={{ paddingLeft: '32px' }} />
+          <input className="input" placeholder="Search POs or vendor..." value={search} onChange={e => setSearch(e.target.value)} style={{ paddingLeft: '32px' }} />
         </div>
         <select className="input" value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ width: 'auto', minWidth: '160px' }}>
-          {STATUSES.map(s => <option key={s} value={s}>{s ? s.replace('_', ' ') : 'All statuses'}</option>)}
+          {STATUSES.map(s => <option key={s} value={s}>{s ? s.replace(/_/g, ' ') : 'All statuses'}</option>)}
         </select>
         <button className="btn btn-secondary btn-sm" onClick={fetchPOs}><RefreshCw size={13} /></button>
       </div>
@@ -94,9 +95,16 @@ export default function PurchaseOrdersPage() {
               </td></tr>
             ) : filtered.map(po => (
               <tr key={po.id}>
-                <td><span className="mono" style={{ fontSize: '12px', color: 'var(--text-accent)' }}>{po.po_number}</span></td>
-                <td style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Vendor #{po.vendor_id}</td>
-                <td><span className={`badge ${STATUS_BADGE[po.status]}`}>{po.status.replace('_', ' ')}</span></td>
+                <td>
+                  <Link to={`/purchase-orders/${po.id}`} style={{ color: 'var(--text-accent)', textDecoration: 'none', fontFamily: 'var(--font-mono)', fontSize: '12px' }}>
+                    {po.po_number}
+                  </Link>
+                </td>
+                <td>
+                  <div style={{ fontWeight: 500 }}>{po.vendor?.company_name || `Vendor #${po.vendor_id}`}</div>
+                  {po.vendor?.vendor_code && <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{po.vendor.vendor_code}</div>}
+                </td>
+                <td><span className={`badge ${STATUS_BADGE[po.status]}`}>{po.status.replace(/_/g, ' ')}</span></td>
                 <td style={{ fontSize: '12px' }}>{po.line_items?.length || 0} items</td>
                 <td><span className="mono" style={{ fontSize: '12px' }}>₹{po.subtotal?.toLocaleString('en-IN')}</span></td>
                 <td><span className="mono" style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>₹{po.tax_amount?.toLocaleString('en-IN')}</span></td>
@@ -106,12 +114,13 @@ export default function PurchaseOrdersPage() {
                 </td>
                 <td>
                   <div style={{ display: 'flex', gap: '6px' }}>
+                    <Link to={`/purchase-orders/${po.id}`} className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: '12px' }}>View</Link>
                     {po.status === 'draft' && (
-                      <button className="btn btn-sm btn-secondary" onClick={() => handleStatusChange(po.id, 'sent')}>Send to Vendor</button>
+                      <button className="btn btn-sm btn-secondary" onClick={() => handleStatusChange(po.id, 'sent')}>Send</button>
                     )}
                     {po.status === 'sent' && (
                       <button className="btn btn-sm" style={{ background: 'var(--purple-dim)', color: 'var(--purple)', border: '1px solid rgba(167,139,250,0.2)' }}
-                        onClick={() => handleStatusChange(po.id, 'acknowledged')}>Mark Acknowledged</button>
+                        onClick={() => handleStatusChange(po.id, 'acknowledged')}>Acknowledge</button>
                     )}
                   </div>
                 </td>

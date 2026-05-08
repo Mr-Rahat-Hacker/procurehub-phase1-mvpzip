@@ -47,7 +47,9 @@ class PROut(BaseModel):
     required_by: Optional[datetime]
     approved_by: Optional[str]
     approval_notes: Optional[str]
+    requester_id: int
     created_at: datetime
+    updated_at: Optional[datetime]
     line_items: List[PRLineItemOut]
 
     class Config:
@@ -84,19 +86,32 @@ class POUpdate(BaseModel):
     notes: Optional[str] = None
     expected_delivery: Optional[datetime] = None
 
+class VendorSummary(BaseModel):
+    id: int
+    vendor_code: str
+    company_name: str
+
+    class Config:
+        from_attributes = True
+
 class POOut(BaseModel):
     id: int
     po_number: str
     vendor_id: int
+    vendor: Optional[VendorSummary]
+    requisition_id: Optional[int]
     status: POStatus
     payment_terms: str
+    delivery_address: Optional[str]
     subtotal: float
     tax_amount: float
     total_amount: float
     currency: str
     notes: Optional[str]
     expected_delivery: Optional[datetime]
+    created_by: Optional[str]
     created_at: datetime
+    updated_at: Optional[datetime]
     line_items: List[POLineItemOut]
 
     class Config:

@@ -34,6 +34,7 @@ export default function NewPRPage() {
     if (!form.title.trim()) e.title = 'Title is required'
     if (!form.department) e.department = 'Department is required'
     if (items.some(it => !it.item_name.trim())) e.items = 'All line items must have a name'
+    if (items.some(it => parseFloat(it.quantity) <= 0 || isNaN(parseFloat(it.quantity)))) e.items = 'All quantities must be greater than 0'
     setErrors(e)
     return Object.keys(e).length === 0
   }

@@ -9,6 +9,7 @@ app = FastAPI(
     title="ProcureHub API",
     description="Enterprise e-Procurement Platform",
     version="1.0.0",
+    redirect_slashes=False,
 )
 
 app.add_middleware(

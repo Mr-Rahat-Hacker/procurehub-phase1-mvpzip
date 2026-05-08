@@ -15,7 +15,7 @@ router = APIRouter()
 def generate_vendor_code():
     return "VEN-" + "".join(random.choices(string.digits, k=6))
 
-@router.get("/", response_model=List[VendorOut])
+@router.get("", response_model=List[VendorOut])
 def list_vendors(
     search: Optional[str] = Query(None),
     status: Optional[VendorStatus] = Query(None),
@@ -31,7 +31,7 @@ def list_vendors(
         q = q.filter(Vendor.status == status)
     return q.offset(skip).limit(limit).all()
 
-@router.post("/", response_model=VendorOut, status_code=201)
+@router.post("", response_model=VendorOut, status_code=201)
 def create_vendor(data: VendorCreate, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     vendor = Vendor(**data.model_dump(), vendor_code=generate_vendor_code())
     db.add(vendor)

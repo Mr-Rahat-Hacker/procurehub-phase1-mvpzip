@@ -24,7 +24,7 @@ VALID_PO_TRANSITIONS = {
 def generate_po_number():
     return "PO-" + "".join(random.choices(string.digits, k=8))
 
-@router.get("/", response_model=List[POOut])
+@router.get("", response_model=List[POOut])
 def list_pos(
     status: Optional[POStatus] = Query(None),
     vendor_id: Optional[int] = Query(None),
@@ -39,7 +39,7 @@ def list_pos(
         q = q.filter(PurchaseOrder.vendor_id == vendor_id)
     return q.order_by(PurchaseOrder.created_at.desc()).offset(skip).limit(limit).all()
 
-@router.post("/", response_model=POOut, status_code=201)
+@router.post("", response_model=POOut, status_code=201)
 def create_po(data: POCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     vendor = db.query(Vendor).filter(Vendor.id == data.vendor_id).first()
     if not vendor:

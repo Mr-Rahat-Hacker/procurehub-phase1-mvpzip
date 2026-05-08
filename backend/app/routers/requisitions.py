@@ -26,7 +26,7 @@ def generate_pr_number():
         candidate = "PR-" + "".join(random.choices(string.digits, k=8))
         return candidate
 
-@router.get("/", response_model=List[PROut])
+@router.get("", response_model=List[PROut])
 def list_prs(
     status: Optional[PRStatus] = Query(None),
     department: Optional[str] = Query(None),
@@ -44,7 +44,7 @@ def list_prs(
         q = q.filter(PurchaseRequisition.department == department)
     return q.order_by(PurchaseRequisition.created_at.desc()).offset(skip).limit(limit).all()
 
-@router.post("/", response_model=PROut, status_code=201)
+@router.post("", response_model=PROut, status_code=201)
 def create_pr(data: PRCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if not data.line_items:
         raise HTTPException(status_code=400, detail="At least one line item is required")

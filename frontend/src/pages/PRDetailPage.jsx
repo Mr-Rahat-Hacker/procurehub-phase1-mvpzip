@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { prApi } from '../api/client'
 import useToastStore from '../store/toastStore'
 import useAuthStore from '../store/authStore'
-import { ArrowLeft, Send, CheckCircle, XCircle, ShoppingCart } from 'lucide-react'
+import { ArrowLeft, Send, CheckCircle, XCircle, ShoppingCart, Printer, FileSearch } from 'lucide-react'
 import { format } from 'date-fns'
 
 const STATUS_BADGE = {
@@ -91,10 +91,18 @@ export default function PRDetailPage() {
             </>
           )}
           {pr.status === 'approved' && (
-            <Link to={`/purchase-orders/new?pr=${pr.id}`} className="btn btn-primary btn-sm">
-              <ShoppingCart size={13} /> Create PO
-            </Link>
+            <>
+              <Link to={`/purchase-orders/new?pr=${pr.id}`} className="btn btn-primary btn-sm">
+                <ShoppingCart size={13} /> Create PO
+              </Link>
+              <Link to={`/rfqs/new?pr_id=${pr.id}`} className="btn btn-secondary btn-sm">
+                <FileSearch size={13} /> Create RFQ
+              </Link>
+            </>
           )}
+          <Link to={`/print/pr/${pr.id}`} target="_blank" className="btn btn-secondary btn-sm">
+            <Printer size={13} /> Print
+          </Link>
         </div>
       </div>
 

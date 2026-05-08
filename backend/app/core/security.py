@@ -42,9 +42,12 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         raise credentials_exception
     return user
 
-def require_role(*roles: str):
+def require_role(roles):
+    if isinstance(roles, str):
+        roles = [roles]
+    allowed = set(str(r.value) if hasattr(r, 'value') else str(r) for r in roles)
     def checker(current_user: User = Depends(get_current_user)):
-        if current_user.role not in roles:
+        if str(current_user.role.value) not in allowed:
             raise HTTPException(status_code=403, detail="Insufficient permissions")
         return current_user
     return checker

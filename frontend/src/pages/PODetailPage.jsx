@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { poApi } from '../api/client'
 import useToastStore from '../store/toastStore'
-import { ArrowLeft, Send, CheckCircle, Package } from 'lucide-react'
+import { ArrowLeft, Send, CheckCircle, Package, Printer, Truck } from 'lucide-react'
 import { format } from 'date-fns'
 
 const STATUS_BADGE = {
@@ -100,6 +100,14 @@ export default function PODetailPage() {
           {['draft', 'sent', 'acknowledged'].includes(po.status) && (
             <button className="btn btn-danger btn-sm" disabled={acting} onClick={cancel}>Cancel PO</button>
           )}
+          {['sent', 'acknowledged', 'partially_received'].includes(po.status) && (
+            <Link to={`/grns/new?po_id=${po.id}`} className="btn btn-secondary btn-sm">
+              <Truck size={13} /> Create GRN
+            </Link>
+          )}
+          <Link to={`/print/po/${po.id}`} target="_blank" className="btn btn-secondary btn-sm">
+            <Printer size={13} /> Print PO
+          </Link>
         </div>
       </div>
 

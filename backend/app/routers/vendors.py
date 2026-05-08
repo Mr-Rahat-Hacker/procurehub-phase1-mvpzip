@@ -62,7 +62,7 @@ def update_vendor_status(
     vendor_id: int,
     body: VendorStatusUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.ADMIN, UserRole.PROCUREMENT_MANAGER)),
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.PROCUREMENT_MANAGER])),
 ):
     vendor = db.query(Vendor).filter(Vendor.id == vendor_id).first()
     if not vendor:
@@ -77,7 +77,7 @@ def update_vendor_status(
     return vendor
 
 @router.delete("/{vendor_id}", status_code=204)
-def deactivate_vendor(vendor_id: int, db: Session = Depends(get_db), _: User = Depends(require_role(UserRole.ADMIN))):
+def deactivate_vendor(vendor_id: int, db: Session = Depends(get_db), _: User = Depends(require_role([UserRole.ADMIN]))):
     vendor = db.query(Vendor).filter(Vendor.id == vendor_id).first()
     if not vendor:
         raise HTTPException(status_code=404, detail="Vendor not found")

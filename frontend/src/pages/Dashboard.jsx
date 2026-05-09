@@ -2,12 +2,13 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { prApi, poApi, vendorApi } from '../api/client'
 import useAuthStore from '../store/authStore'
-import { FileText, Users, ShoppingCart, TrendingUp, Plus, ArrowRight } from 'lucide-react'
+import { FileText, Users, ShoppingCart, TrendingUp, Plus, ArrowRight, AlertTriangle, Clock, CheckCircle } from 'lucide-react'
 
-const statusBadge = {
+const STATUS_BADGE = {
   draft: 'badge-muted', submitted: 'badge-blue', approved: 'badge-green',
-  rejected: 'badge-red', po_created: 'badge-accent',
-  pending: 'badge-amber', under_review: 'badge-blue',
+  rejected: 'badge-red', po_created: 'badge-accent', under_review: 'badge-blue',
+  pending: 'badge-amber', sent: 'badge-blue', acknowledged: 'badge-accent',
+  partially_received: 'badge-amber', fully_received: 'badge-green', closed: 'badge-muted', cancelled: 'badge-red',
 }
 
 export default function Dashboard() {
@@ -26,134 +27,181 @@ export default function Dashboard() {
     }).catch(() => setLoading(false))
   }, [])
 
-  const stats = [
-    { label: 'Total PRs', value: data.prs.length, icon: FileText, color: 'var(--blue)', bg: 'var(--blue-dim)' },
-    {
-      label: 'Active POs',
-      value: data.pos.filter(p => ['sent', 'acknowledged', 'partially_received'].includes(p.status)).length,
-      icon: ShoppingCart, color: 'var(--accent)', bg: 'var(--accent-dim)'
-    },
-    { label: 'Vendors', value: data.vendors.filter(v => v.status === 'approved').length, icon: Users, color: 'var(--purple)', bg: 'var(--purple-dim)' },
-    {
-      label: 'PO Value (INR)',
-      value: '₹' + (data.pos.reduce((s, p) => s + (p.total_amount || 0), 0) / 100000).toFixed(1) + 'L',
-      icon: TrendingUp, color: 'var(--green)', bg: 'var(--green-dim)',
-    },
+  const totalPOValue = data.pos.reduce((s, p) => s + (p.total_amount || 0), 0)
+  const activePOs = data.pos.filter(p => ['sent', 'acknowledged', 'partially_received'].includes(p.status))
+  const pendingApprovals = data.prs.filter(p => p.status === 'submitted')
+  const approvedVendors = data.vendors.filter(v => v.status === 'approved')
+
+  const kpis = [
+    { label: 'Total Requisitions', value: data.prs.length, color: '#0854a0', icon: FileText },
+    { label: 'Pending Approvals', value: pendingApprovals.length, color: pendingApprovals.length > 0 ? '#e9730c' : '#107e3e', icon: Clock },
+    { label: 'Active POs', value: activePOs.length, color: '#0a6ed1', icon: ShoppingCart },
+    { label: 'Approved Vendors', value: approvedVendors.length, color: '#107e3e', icon: CheckCircle },
+    { label: 'Total PO Value', value: `₹${(totalPOValue / 100000).toFixed(2)}L`, color: '#6a1a75', icon: TrendingUp },
+    { label: 'Pending Vendors', value: data.vendors.filter(v => v.status === 'pending').length, color: '#e9730c', icon: Users },
   ]
 
-  const pendingApprovals = data.prs.filter(p => p.status === 'submitted').length
+  if (loading) return <div className="loading-center"><div className="spinner" /></div>
 
   return (
     <div>
+      {/* Page Header */}
       <div className="page-header">
         <div>
-          <h1 className="page-title">Good {getGreeting()}, {user?.full_name?.split(' ')[0]} 👋</h1>
-          <p className="page-subtitle">Here's your procurement overview</p>
+          <h1 className="page-title">Dashboard</h1>
+          <p className="page-subtitle">
+            Welcome, {user?.full_name} &nbsp;·&nbsp;
+            {new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+          </p>
         </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div style={{ display: 'flex', gap: 8 }}>
           <Link to="/requisitions/new" className="btn btn-secondary btn-sm">
-            <Plus size={14} /> New PR
+            <Plus size={13} /> New PR
           </Link>
           <Link to="/purchase-orders/new" className="btn btn-primary btn-sm">
-            <Plus size={14} /> New PO
+            <Plus size={13} /> New PO
           </Link>
         </div>
       </div>
 
-      {pendingApprovals > 0 && (
-        <div style={{
-          background: 'var(--amber-dim)', border: '1px solid rgba(245,158,11,0.2)',
-          borderRadius: 'var(--radius-md)', padding: '12px 16px',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          marginBottom: '20px', fontSize: '13px',
-        }}>
-          <span>🔔 <strong>{pendingApprovals}</strong> purchase requisition{pendingApprovals > 1 ? 's' : ''} pending approval</span>
-          <Link to="/requisitions?status=submitted" style={{ color: 'var(--amber)', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+      {/* Pending Approval Banner */}
+      {pendingApprovals.length > 0 && (
+        <div className="alert alert-warning" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <AlertTriangle size={14} />
+            <strong>{pendingApprovals.length}</strong> purchase requisition{pendingApprovals.length > 1 ? 's' : ''} awaiting approval
+          </span>
+          <Link to="/requisitions" style={{ fontSize: 12, color: 'var(--amber)', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600 }}>
             Review <ArrowRight size={12} />
           </Link>
         </div>
       )}
 
-      {loading ? (
-        <div className="loading-center"><div className="spinner" /></div>
-      ) : (
-        <>
-          <div className="stats-grid">
-            {stats.map((s) => (
-              <div key={s.label} className="stat-card">
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                  <span className="stat-label">{s.label}</span>
-                  <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: s.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <s.icon size={16} color={s.color} />
-                  </div>
-                </div>
-                <div className="stat-value">{s.value}</div>
-              </div>
-            ))}
+      {/* KPI Tiles */}
+      <div className="stats-grid" style={{ marginBottom: 16 }}>
+        {kpis.map((k) => (
+          <div key={k.label} className="stat-card">
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 8 }}>
+              <span className="stat-label">{k.label}</span>
+              <k.icon size={14} style={{ color: k.color, opacity: 0.8, flexShrink: 0 }} />
+            </div>
+            <div className="stat-value" style={{ color: k.color }}>{k.value}</div>
           </div>
+        ))}
+      </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-            <div className="card">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-                <h3 style={{ fontSize: '14px', fontWeight: 500 }}>Recent Requisitions</h3>
-                <Link to="/requisitions" style={{ fontSize: '12px', color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  View all <ArrowRight size={12} />
-                </Link>
-              </div>
+      {/* Tables row */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        {/* Recent PRs */}
+        <div className="panel">
+          <div className="panel-header">
+            <span>Recent Purchase Requisitions</span>
+            <Link to="/requisitions" style={{ fontSize: 11, color: 'var(--text-link)', fontWeight: 400, display: 'flex', alignItems: 'center', gap: 4 }}>
+              View All <ArrowRight size={11} />
+            </Link>
+          </div>
+          <table className="table" style={{ border: 'none' }}>
+            <thead>
+              <tr>
+                <th style={{ borderTop: 'none' }}>PR No.</th>
+                <th style={{ borderTop: 'none' }}>Title</th>
+                <th style={{ borderTop: 'none' }}>Status</th>
+              </tr>
+            </thead>
+            <tbody>
               {data.prs.length === 0 ? (
-                <p style={{ color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>No requisitions yet</p>
-              ) : (
-                data.prs.slice(0, 5).map((pr) => (
-                  <Link key={pr.id} to={`/requisitions/${pr.id}`} style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '10px 0', borderBottom: '1px solid var(--border-subtle)',
-                    color: 'var(--text-primary)', textDecoration: 'none', fontSize: '13px',
-                  }}>
-                    <div>
-                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--text-muted)' }}>{pr.pr_number}</div>
-                      <div style={{ fontWeight: 500 }}>{pr.title}</div>
-                    </div>
-                    <span className={`badge ${statusBadge[pr.status] || 'badge-muted'}`}>{pr.status.replace(/_/g, ' ')}</span>
-                  </Link>
-                ))
-              )}
-            </div>
+                <tr><td colSpan={3} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>No requisitions yet</td></tr>
+              ) : data.prs.slice(0, 6).map((pr) => (
+                <tr key={pr.id}>
+                  <td>
+                    <Link to={`/requisitions/${pr.id}`} style={{ color: 'var(--text-link)', fontFamily: 'var(--font-mono)', fontSize: 11 }}>
+                      {pr.pr_number}
+                    </Link>
+                  </td>
+                  <td style={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {pr.title}
+                  </td>
+                  <td><span className={`badge ${STATUS_BADGE[pr.status] || 'badge-muted'}`}>{pr.status.replace(/_/g, ' ')}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
 
-            <div className="card">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-                <h3 style={{ fontSize: '14px', fontWeight: 500 }}>Vendor Pipeline</h3>
-                <Link to="/vendors" style={{ fontSize: '12px', color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  View all <ArrowRight size={12} />
-                </Link>
-              </div>
-              {data.vendors.length === 0 ? (
-                <p style={{ color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>No vendors yet</p>
-              ) : (
-                data.vendors.slice(0, 5).map((v) => (
-                  <Link key={v.id} to={`/vendors/${v.id}`} style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '10px 0', borderBottom: '1px solid var(--border-subtle)',
-                    color: 'var(--text-primary)', textDecoration: 'none', fontSize: '13px',
-                  }}>
-                    <div>
-                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--text-muted)' }}>{v.vendor_code}</div>
-                      <div style={{ fontWeight: 500 }}>{v.company_name}</div>
-                    </div>
-                    <span className={`badge ${statusBadge[v.status] || 'badge-muted'}`}>{v.status.replace(/_/g, ' ')}</span>
-                  </Link>
-                ))
-              )}
-            </div>
+        {/* Recent POs */}
+        <div className="panel">
+          <div className="panel-header">
+            <span>Recent Purchase Orders</span>
+            <Link to="/purchase-orders" style={{ fontSize: 11, color: 'var(--text-link)', fontWeight: 400, display: 'flex', alignItems: 'center', gap: 4 }}>
+              View All <ArrowRight size={11} />
+            </Link>
           </div>
-        </>
-      )}
+          <table className="table" style={{ border: 'none' }}>
+            <thead>
+              <tr>
+                <th style={{ borderTop: 'none' }}>PO No.</th>
+                <th style={{ borderTop: 'none' }}>Vendor</th>
+                <th style={{ borderTop: 'none' }}>Value</th>
+                <th style={{ borderTop: 'none' }}>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.pos.length === 0 ? (
+                <tr><td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>No purchase orders yet</td></tr>
+              ) : data.pos.slice(0, 6).map((po) => (
+                <tr key={po.id}>
+                  <td>
+                    <Link to={`/purchase-orders/${po.id}`} style={{ color: 'var(--text-link)', fontFamily: 'var(--font-mono)', fontSize: 11 }}>
+                      {po.po_number}
+                    </Link>
+                  </td>
+                  <td style={{ maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11 }}>
+                    {po.vendor?.company_name || '—'}
+                  </td>
+                  <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11, whiteSpace: 'nowrap' }}>
+                    ₹{po.total_amount?.toLocaleString('en-IN')}
+                  </td>
+                  <td><span className={`badge ${STATUS_BADGE[po.status] || 'badge-muted'}`}>{po.status.replace(/_/g, ' ')}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Vendor Pipeline */}
+      <div className="panel" style={{ marginTop: 12 }}>
+        <div className="panel-header">
+          <span>Vendor Pipeline</span>
+          <Link to="/vendors" style={{ fontSize: 11, color: 'var(--text-link)', fontWeight: 400, display: 'flex', alignItems: 'center', gap: 4 }}>
+            View All <ArrowRight size={11} />
+          </Link>
+        </div>
+        <table className="table" style={{ border: 'none' }}>
+          <thead>
+            <tr>
+              <th>Vendor Code</th>
+              <th>Company Name</th>
+              <th>Category</th>
+              <th>Contact</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.vendors.length === 0 ? (
+              <tr><td colSpan={5} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>No vendors yet</td></tr>
+            ) : data.vendors.filter(v => v.status !== 'approved').concat(data.vendors.filter(v => v.status === 'approved')).slice(0, 5).map((v) => (
+              <tr key={v.id}>
+                <td><Link to={`/vendors/${v.id}`} style={{ color: 'var(--text-link)', fontFamily: 'var(--font-mono)', fontSize: 11 }}>{v.vendor_code}</Link></td>
+                <td style={{ fontWeight: 500, fontSize: 12 }}>{v.company_name}</td>
+                <td style={{ textTransform: 'capitalize', fontSize: 11 }}>{v.category?.replace(/_/g, ' ')}</td>
+                <td style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{v.contact_email}</td>
+                <td><span className={`badge ${STATUS_BADGE[v.status] || 'badge-muted'}`}>{v.status.replace(/_/g, ' ')}</span></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
-}
-
-function getGreeting() {
-  const h = new Date().getHours()
-  if (h < 12) return 'morning'
-  if (h < 17) return 'afternoon'
-  return 'evening'
 }

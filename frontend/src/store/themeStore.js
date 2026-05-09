@@ -3,14 +3,14 @@ import { persist } from 'zustand/middleware'
 
 const useThemeStore = create(persist(
   (set, get) => ({
-    theme: 'dark',
+    theme: 'light',
     toggleTheme: () => {
       const next = get().theme === 'dark' ? 'light' : 'dark'
       set({ theme: next })
       document.documentElement.setAttribute('data-theme', next)
     },
     initTheme: () => {
-      const t = get().theme || 'dark'
+      const t = get().theme || 'light'
       document.documentElement.setAttribute('data-theme', t)
     },
   }),

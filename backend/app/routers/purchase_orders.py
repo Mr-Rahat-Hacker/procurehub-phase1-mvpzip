@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.core.database import get_db
-from app.core.security import get_current_user, require_role
+from app.core.security import get_current_user
 from app.models.procurement import PurchaseOrder, POLineItem, POStatus, PurchaseRequisition, PRStatus
 from app.models.vendor import Vendor, VendorStatus
 from app.models.user import User, UserRole
@@ -41,6 +41,8 @@ def list_pos(
 
 @router.post("", response_model=POOut, status_code=201)
 def create_po(data: POCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if current_user.role not in {UserRole.ADMIN, UserRole.PROCUREMENT_MANAGER, UserRole.BUYER}:
+        raise HTTPException(status_code=403, detail="Only procurement roles can create POs")
     vendor = db.query(Vendor).filter(Vendor.id == data.vendor_id).first()
     if not vendor:
         raise HTTPException(status_code=404, detail="Vendor not found")
@@ -95,6 +97,8 @@ def update_po(po_id: int, updates: POUpdate, db: Session = Depends(get_db), curr
     po = db.query(PurchaseOrder).filter(PurchaseOrder.id == po_id).first()
     if not po:
         raise HTTPException(status_code=404, detail="PO not found")
+    if current_user.role not in {UserRole.ADMIN, UserRole.PROCUREMENT_MANAGER, UserRole.BUYER, UserRole.APPROVER}:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
 
     if updates.status is not None:
         new_status = updates.status

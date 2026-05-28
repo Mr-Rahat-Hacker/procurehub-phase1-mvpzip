@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.core.database import get_db
-from app.core.security import get_current_user, require_role
+from app.core.security import get_current_user
 from app.models.procurement import PurchaseRequisition, PRLineItem, PRStatus
 from app.models.user import User, UserRole
 from app.schemas.procurement import PRCreate, PROut, PRUpdate
@@ -21,10 +21,13 @@ VALID_TRANSITIONS = {
     PRStatus.PO_CREATED: set(),
 }
 
-def generate_pr_number():
+def generate_pr_number(db: Session) -> str:
     for _ in range(10):
         candidate = "PR-" + "".join(random.choices(string.digits, k=8))
-        return candidate
+        exists = db.query(PurchaseRequisition.id).filter(PurchaseRequisition.pr_number == candidate).first()
+        if not exists:
+            return candidate
+    raise HTTPException(status_code=500, detail="Failed to generate unique PR number")
 
 @router.get("", response_model=List[PROut])
 def list_prs(
@@ -49,7 +52,7 @@ def create_pr(data: PRCreate, db: Session = Depends(get_db), current_user: User 
     if not data.line_items:
         raise HTTPException(status_code=400, detail="At least one line item is required")
     pr = PurchaseRequisition(
-        pr_number=generate_pr_number(),
+        pr_number=generate_pr_number(db),
         title=data.title,
         description=data.description,
         department=data.department,

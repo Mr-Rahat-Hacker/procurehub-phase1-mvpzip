@@ -1,8 +1,16 @@
 import { create } from 'zustand'
 import { authApi } from '../api/client'
 
+const safeParseUser = () => {
+  try {
+    return JSON.parse(localStorage.getItem('ph_user') || 'null')
+  } catch {
+    return null
+  }
+}
+
 const useAuthStore = create((set) => ({
-  user: JSON.parse(localStorage.getItem('ph_user') || 'null'),
+  user: safeParseUser(),
   token: localStorage.getItem('ph_token'),
   loading: false,
   error: null,
@@ -25,7 +33,13 @@ const useAuthStore = create((set) => ({
   logout: () => {
     localStorage.removeItem('ph_token')
     localStorage.removeItem('ph_user')
-    set({ user: null, token: null })
+    set({ user: null, token: null, error: null })
+  },
+
+  forceLogout: () => {
+    localStorage.removeItem('ph_token')
+    localStorage.removeItem('ph_user')
+    set({ user: null, token: null, loading: false, error: null })
   },
 
   clearError: () => set({ error: null }),

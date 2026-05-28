@@ -1,4 +1,5 @@
 import axios from 'axios'
+import useAuthStore from '../store/authStore'
 
 const api = axios.create({
   baseURL: '/api',
@@ -15,9 +16,11 @@ api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401) {
-      localStorage.removeItem('ph_token')
-      localStorage.removeItem('ph_user')
-      window.location.href = '/login'
+      const { forceLogout } = useAuthStore.getState()
+      forceLogout()
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login'
+      }
     }
     return Promise.reject(err)
   }
@@ -103,4 +106,19 @@ export const reportsApi = {
   monthlySpend: () => api.get('/reports/monthly-spend'),
   prStatusBreakdown: () => api.get('/reports/pr-status-breakdown'),
   topItems: () => api.get('/reports/top-items'),
+}
+
+// Governance
+export const governanceApi = {
+  createApprovalRule: (data) => api.post('/governance/approval-rules', data),
+  createApprovalTasks: (resourceType, resourceId) =>
+    api.post(`/governance/approval-tasks/${resourceType}/${resourceId}`),
+  actionApprovalTask: (taskId, data) => api.post(`/governance/approval-tasks/${taskId}/action`, data),
+  createBudget: (data) => api.post('/governance/budgets', data),
+  checkBudget: (data, reserve = true) => api.post(`/governance/budgets/check?reserve=${reserve}`, data),
+  commitBudget: (data) => api.post('/governance/budgets/commit', data),
+  createInvoice: (data) => api.post('/governance/invoices', data),
+  listInvoiceExceptions: () => api.get('/governance/invoices/exceptions'),
+  threeWayMatch: (invoiceId, params) => api.get(`/governance/invoices/${invoiceId}/three-way-match`, { params }),
+  createSodPolicy: (data) => api.post('/governance/sod-policies', data),
 }

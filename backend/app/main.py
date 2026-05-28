@@ -1,10 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import auth, vendors, requisitions, purchase_orders, rfq, audit, grn, users, reports
+from app.routers import auth, vendors, requisitions, purchase_orders, rfq, audit, grn, users, reports, governance
 from app.core.database import engine, Base
-from app.models import rfq as rfq_models, audit as audit_models, grn as grn_models
+from app.core.config import settings
+from app.models import rfq as rfq_models, audit as audit_models, grn as grn_models, governance as governance_models
 
-Base.metadata.create_all(bind=engine)
+if settings.AUTO_CREATE_TABLES:
+    Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="ProcureHub API",
@@ -15,7 +17,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.cors_origins_list,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -30,6 +32,7 @@ app.include_router(rfq.router, prefix="/api/rfqs", tags=["rfq"])
 app.include_router(grn.router, prefix="/api/grns", tags=["grn"])
 app.include_router(audit.router, prefix="/api/audit-logs", tags=["audit"])
 app.include_router(reports.router, prefix="/api/reports", tags=["reports"])
+app.include_router(governance.router, prefix="/api/governance", tags=["governance"])
 
 @app.get("/api/health")
 def health():

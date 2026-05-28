@@ -6,7 +6,7 @@ from app.core.security import get_current_user
 from app.models.grn import GoodsReceiptNote, GRNLineItem, GRNStatus
 from app.models.procurement import PurchaseOrder, POStatus
 from app.models.audit import AuditLog
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.schemas.grn import GRNCreate, GRNOut, GRNUpdate
 import random, string
 
@@ -38,6 +38,8 @@ def list_grns(
 
 @router.post("", response_model=GRNOut, status_code=201)
 def create_grn(data: GRNCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if current_user.role not in {UserRole.ADMIN, UserRole.PROCUREMENT_MANAGER, UserRole.BUYER}:
+        raise HTTPException(status_code=403, detail="Only procurement roles can create GRNs")
     po = db.query(PurchaseOrder).filter(PurchaseOrder.id == data.purchase_order_id).first()
     if not po:
         raise HTTPException(status_code=404, detail="Purchase Order not found")
@@ -80,6 +82,8 @@ def update_grn(grn_id: int, data: GRNUpdate, db: Session = Depends(get_db), curr
     grn = db.query(GoodsReceiptNote).filter(GoodsReceiptNote.id == grn_id).first()
     if not grn:
         raise HTTPException(status_code=404, detail="GRN not found")
+    if current_user.role not in {UserRole.ADMIN, UserRole.PROCUREMENT_MANAGER, UserRole.BUYER, UserRole.APPROVER}:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
     for k, v in data.model_dump(exclude_unset=True).items():
         setattr(grn, k, v)
     log_action(db, current_user, "UPDATE", "GRN", grn.id, grn.grn_number)

@@ -19,6 +19,29 @@ from app.schemas.governance import (
 router = APIRouter()
 
 
+def normalize_resource_type(resource_type: str) -> str:
+    return resource_type.strip().upper()
+
+
+def get_resource_context(db: Session, resource_type: str, resource_id: int):
+    if resource_type == "PR":
+        resource = db.query(PurchaseRequisition).filter(PurchaseRequisition.id == resource_id).first()
+        if not resource:
+            raise HTTPException(status_code=404, detail="PR not found")
+        maker = db.query(User).filter(User.id == resource.requester_id).first()
+        categories = {item.category for item in resource.line_items if item.category}
+        return resource.estimated_value, resource.department, categories, maker
+
+    if resource_type == "PO":
+        resource = db.query(PurchaseOrder).filter(PurchaseOrder.id == resource_id).first()
+        if not resource:
+            raise HTTPException(status_code=404, detail="PO not found")
+        categories = {item.hsn_code for item in resource.line_items if item.hsn_code}
+        return resource.total_amount, None, categories, None
+
+    raise HTTPException(status_code=400, detail="Unsupported resource type")
+
+
 def audit(db: Session, user: User, action: str, resource_type: str, resource_id: str, old=None, new=None):
     db.add(AuditLog(
         user_id=user.id,
@@ -44,24 +67,26 @@ def create_approval_rule(data: ApprovalRuleCreate, db: Session = Depends(get_db)
 
 @router.post("/approval-tasks/{resource_type}/{resource_id}")
 def create_approval_tasks(resource_type: str, resource_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    amount = 0.0
-    department = None
-    if resource_type == "PR":
-        pr = db.query(PurchaseRequisition).filter(PurchaseRequisition.id == resource_id).first()
-        if not pr:
-            raise HTTPException(status_code=404, detail="PR not found")
-        amount = pr.estimated_value
-        department = pr.department
-    elif resource_type == "PO":
-        po = db.query(PurchaseOrder).filter(PurchaseOrder.id == resource_id).first()
-        if not po:
-            raise HTTPException(status_code=404, detail="PO not found")
-        amount = po.total_amount
-    else:
-        raise HTTPException(status_code=400, detail="Unsupported resource type")
+    resource_type = normalize_resource_type(resource_type)
+    amount, department, categories, _ = get_resource_context(db, resource_type, resource_id)
 
-    rules = db.query(ApprovalRule).filter(ApprovalRule.is_active == True, ApprovalRule.min_amount <= amount).all()
-    rules = [r for r in rules if (r.max_amount is None or amount <= r.max_amount) and (r.department is None or r.department == department)]
+    existing_count = db.query(ApprovalTask).filter(
+        ApprovalTask.resource_type == resource_type,
+        ApprovalTask.resource_id == resource_id,
+    ).count()
+    if existing_count:
+        return {"message": "Approval tasks already exist", "count": existing_count}
+
+    rules = db.query(ApprovalRule).filter(
+        ApprovalRule.is_active.is_(True),
+        ApprovalRule.min_amount <= amount,
+    ).all()
+    rules = [
+        r for r in rules
+        if (r.max_amount is None or amount <= r.max_amount)
+        and (r.department is None or r.department == department)
+        and (r.category is None or r.category in categories)
+    ]
     if not rules:
         return {"message": "No matching approval rules"}
 
@@ -74,36 +99,48 @@ def create_approval_tasks(resource_type: str, resource_id: int, db: Session = De
 
 @router.post("/approval-tasks/{task_id}/action")
 def act_approval_task(task_id: int, data: ApprovalAction, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    if data.action == ApprovalStatus.PENDING:
+        raise HTTPException(status_code=400, detail="Approval action must be approved or rejected")
+
     task = db.query(ApprovalTask).filter(ApprovalTask.id == task_id).first()
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
+    if task.status != ApprovalStatus.PENDING:
+        raise HTTPException(status_code=400, detail="Approval task has already been actioned")
+
     rule = db.query(ApprovalRule).filter(ApprovalRule.id == task.rule_id).first()
+    if not rule:
+        raise HTTPException(status_code=500, detail="Approval rule missing for task")
     if str(user.role.value) != rule.approver_role and user.role != UserRole.ADMIN:
         raise HTTPException(status_code=403, detail="User role not allowed for this approval level")
+
+    _, _, _, maker = get_resource_context(db, task.resource_type, task.resource_id)
+    maker_role = str(maker.role.value) if maker else None
+    policy = None
+    if maker_role:
+        policy = db.query(SODPolicy).filter(
+            SODPolicy.is_active.is_(True),
+            SODPolicy.resource_type == task.resource_type,
+            SODPolicy.maker_role == maker_role,
+            SODPolicy.checker_role == str(user.role.value),
+        ).first()
+
+    if data.action == ApprovalStatus.APPROVED and policy and maker:
+        db.add(SODViolation(
+            policy_id=policy.id,
+            resource_type=task.resource_type,
+            resource_id=task.resource_id,
+            maker_id=maker.id,
+            checker_id=user.id,
+            reason="Approval blocked by segregation-of-duties policy",
+        ))
+        audit(db, user, "SOD_VIOLATION", task.resource_type, str(task.resource_id), new={"policy_id": policy.id})
+        db.commit()
+        raise HTTPException(status_code=409, detail="SoD policy violation")
 
     task.status = data.action
     task.acted_by_id = user.id
     task.remarks = data.remarks
-
-    # SoD policy enforcement
-    if data.action == ApprovalStatus.APPROVED:
-        policy = db.query(SODPolicy).filter(
-            SODPolicy.is_active == True,
-            SODPolicy.resource_type == task.resource_type,
-            SODPolicy.maker_role == str(user.role.value),
-            SODPolicy.checker_role == str(user.role.value),
-        ).first()
-        if policy:
-            db.add(SODViolation(
-                policy_id=policy.id,
-                resource_type=task.resource_type,
-                resource_id=task.resource_id,
-                maker_id=user.id,
-                checker_id=user.id,
-                reason="Maker and checker cannot be same role/user",
-            ))
-            raise HTTPException(status_code=409, detail="SoD policy violation")
-
     audit(db, user, "APPROVAL_ACTION", "ApprovalTask", str(task.id), new={"status": task.status.value})
     db.commit()
     return {"message": "Task updated", "status": task.status}
